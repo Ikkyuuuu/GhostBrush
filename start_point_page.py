@@ -1,6 +1,9 @@
 # start_point_page.py
 import tkinter as tk
 from tkinter import messagebox
+import threading
+
+import pyautogui  # for FailSafeException
 
 from core import (
     APP_BG,
@@ -29,7 +32,7 @@ class StartPointPage(tk.Frame):
         main.pack(fill="both", expand=True)
 
         # Preview canvas represents the whole usable screen area
-        self.preview_canvas = tk.Canvas(main, bg="#202020", highlightthickness=0)
+        self.preview_canvas = tk.Canvas(main, bg="#1E1E1E", highlightthickness=0)
         self.preview_canvas.pack(fill="both", expand=True)
         self.preview_canvas.bind("<Configure>", lambda e: self.draw_preview_rect())
 
@@ -42,7 +45,7 @@ class StartPointPage(tk.Frame):
         title = tk.Label(
             self.center_frame,
             text="Choose Start Point & Area",
-            font=FONT_TITLE,
+            font=FONT_ENTRY,
             bg=CARD_BG,
             fg=TEXT_FG,
             anchor="center",
@@ -51,15 +54,15 @@ class StartPointPage(tk.Frame):
 
         # Inputs row
         controls_frame = tk.Frame(self.center_frame, bg=CARD_BG)
-        controls_frame.pack(pady=(0, 10))
+        controls_frame.pack(pady=(0, 5))
 
         tk.Label(
             controls_frame,
             text="Start X:",
-            font=FONT_LABEL,
+            font=FONT_ENTRY,
             bg=CARD_BG,
             fg=TEXT_FG,
-        ).grid(row=0, column=0, sticky="e", padx=(0, 5), pady=5)
+        ).grid(row=0, column=0, sticky="e", padx=(0, 5), pady=0)
 
         self.start_x_var = tk.StringVar(value="200")
         entry_x = tk.Entry(
@@ -74,10 +77,10 @@ class StartPointPage(tk.Frame):
         tk.Label(
             controls_frame,
             text="Start Y:",
-            font=FONT_LABEL,
+            font=FONT_ENTRY,
             bg=CARD_BG,
             fg=TEXT_FG,
-        ).grid(row=0, column=2, sticky="e", padx=(0, 5), pady=5)
+        ).grid(row=0, column=2, sticky="e", padx=(0, 5), pady=0)
 
         self.start_y_var = tk.StringVar(value="200")
         entry_y = tk.Entry(
@@ -97,7 +100,7 @@ class StartPointPage(tk.Frame):
             buttons_frame,
             text="⬅ Back",
             command=lambda: controller.show_frame("config"),
-            font=FONT_LABEL,
+            font=FONT_ENTRY,
             padx=12,
             pady=4,
         )
@@ -107,9 +110,9 @@ class StartPointPage(tk.Frame):
             buttons_frame,
             text="Start Drawing",
             command=self.start_drawing,
-            font=FONT_BUTTON,
+            font=FONT_ENTRY,
             padx=18,
-            pady=6,
+            pady=5,
         )
         self.btn_start.pack(side="left", padx=10)
 
@@ -189,7 +192,7 @@ class StartPointPage(tk.Frame):
         if not messagebox.askokcancel(
             "Confirm",
             "The UI will disappear and a countdown will start.\n"
-            "When it reaches 0, this window will close and drawing will begin.\n\n"
+            "When it reaches 0, drawing will begin.\n\n"
             "Move the mouse to the TOP-LEFT corner of the screen to ABORT.\n\n"
             "Continue?"
         ):
@@ -236,13 +239,53 @@ class StartPointPage(tk.Frame):
                 params,
             )
         else:
-            # countdown finished: close window and start drawing
-            self.controller.destroy()
-            draw_image_with_mouse(
-                img,
-                start_x,
-                start_y,
-                params["step"],
-                params["threshold"],
-                params["delay"],
+            # countdown finished: show "Drawing..." and start in background thread
+            canvas.delete("all")
+            canvas.create_text(
+                cw / 2,
+                ch / 2,
+                text="Drawing…",
+                fill=TEXT_FG,
+                font=FONT_COUNTDOWN,
             )
+
+            def worker():
+                aborted = False
+                try:
+                    # perform the drawing (blocking) in a separate thread
+                    draw_image_with_mouse(
+                        img,
+                        start_x,
+                        start_y,
+                        params["step"],
+                        params["threshold"],
+                        params["delay"],
+                    )
+                except pyautogui.FailSafeException:
+                    # user hit the TOP-LEFT failsafe
+                    aborted = True
+                except Exception as e:
+                    # any other unexpected error -> treat as aborted but keep app alive
+                    print("Error while drawing:", e)
+                    aborted = True
+                finally:
+                    # when done, update UI in main thread
+                    self.after(0, lambda: self._on_drawing_done(aborted))
+
+            threading.Thread(target=worker, daemon=True).start()
+
+    def _on_drawing_done(self, aborted=False):
+        """Called when the background drawing thread finishes or is aborted."""
+        # Restore controls (back to StartPointPage UI)
+        self.center_frame.place(relx=0.5, rely=0.25, anchor="center")
+        # Redraw preview rectangle
+        self.draw_preview_rect()
+
+        # Status text in bottom bar
+        if hasattr(self.controller, "global_status_var"):
+            if aborted:
+                self.controller.global_status_var.set(
+                    "Drawing aborted (failsafe: mouse moved to top-left)."
+                )
+            else:
+                self.controller.global_status_var.set("Done drawing.")

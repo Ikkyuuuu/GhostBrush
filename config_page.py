@@ -9,11 +9,11 @@ from core import (
     CARD_BG,
     TEXT_FG,
     SUBTLE_FG,
-    load_and_prepare_image,
     FONT_TITLE,
     FONT_LABEL,
-    FONT_BUTTON,
     FONT_ENTRY,
+    FONT_BUTTON,
+    load_and_prepare_image,
 )
 
 
@@ -24,15 +24,16 @@ class ConfigPage(tk.Frame):
         self.configure(bg=APP_BG)
 
         self.preview_img = None
-        self.original_img = None   # keep original so we can resize nicely
+        self.original_img = None
         self.is_hover = False
 
         # --- Appearance constants ---
         self.DEFAULT_BG = "#252526"  # default drop area background
         self.HOVER_BG = "#3a3a3a"    # hover drop area background
         self.DROP_BOX_WIDTH = 1200   # drop area width (None for full width)
-        self.DROP_BOX_HEIGHT = 800   # drop area height
+        self.DROP_BOX_HEIGHT = 540   # drop area height
         self.PARAM_WIDTH = 800       # target width of "Drawing parameters" section
+        self.PARAM_HEIGHT = 10       # target height of the params box
 
         # =========================
         # MAIN CONTAINER
@@ -64,15 +65,8 @@ class ConfigPage(tk.Frame):
             height=self.DROP_BOX_HEIGHT,
             width=self.DROP_BOX_WIDTH if self.DROP_BOX_WIDTH else 1,
         )
+        self.image_canvas.grid(row=1, column=0, columnspan=4, pady=(0, 10))
 
-        if self.DROP_BOX_WIDTH:
-            self.image_canvas.grid(row=1, column=0, columnspan=4, pady=(0, 50))
-        else:
-            self.image_canvas.grid(
-                row=1, column=0, columnspan=4, pady=(0, 50), sticky="nsew"
-            )
-
-        main.rowconfigure(1, weight=1)
         main.columnconfigure(0, weight=1)
 
         # Hover & resize bindings
@@ -82,13 +76,14 @@ class ConfigPage(tk.Frame):
         self.image_canvas.bind("<Leave>", self.on_hover_leave)
 
         # =========================
-        # PARAMETERS SECTION
+        # PARAMETERS + NEXT (same row)
         # =========================
-        params_container = tk.Frame(main, bg=CARD_BG)
-        params_container.grid(row=2, column=0, columnspan=4, pady=(20, 60))
+        params_row = tk.Frame(main, bg=CARD_BG)
+        params_row.grid(row=2, column=0, columnspan=4, pady=(20, 20))
 
+        # --- parameters frame ---
         params_frame = tk.LabelFrame(
-            params_container,
+            params_row,
             text=" Drawing parameters ",
             font=FONT_LABEL,
             bg=CARD_BG,
@@ -97,7 +92,7 @@ class ConfigPage(tk.Frame):
             relief="groove",
             labelanchor="nw",
         )
-        params_frame.pack()
+        params_frame.grid(row=0, column=0, padx=(0, 20))
 
         row = tk.Frame(params_frame, bg=CARD_BG)
         row.pack(fill="x", expand=True, padx=40, pady=15)
@@ -131,24 +126,23 @@ class ConfigPage(tk.Frame):
         add_param("Threshold:", self.threshold_var)
         add_param("Draw delay (s):", self.delay_var)
 
-        # Freeze params_frame width to PARAM_WIDTH
+        # Freeze params_frame width/height
         params_frame.update_idletasks()
         natural_height = params_frame.winfo_reqheight()
-        params_frame.config(width=self.PARAM_WIDTH, height=natural_height)
+        box_height = max(self.PARAM_HEIGHT, natural_height)
+        params_frame.config(width=self.PARAM_WIDTH, height=box_height)
         params_frame.pack_propagate(False)
 
-        # =========================
-        # NEXT BUTTON
-        # =========================
+        # --- NEXT BUTTON on the right side of params ---
         btn_next = tk.Button(
-            main,
+            params_row,
             text="Next",
             command=self.on_next,
             font=FONT_BUTTON,
             padx=20,
             pady=8,
         )
-        btn_next.grid(row=3, column=0, columnspan=4, pady=(0, 20))
+        btn_next.grid(row=0, column=1, padx=(20, 0))
 
     # ===============================================================
     # HOVER BEHAVIOR
@@ -205,12 +199,8 @@ class ConfigPage(tk.Frame):
     # ===============================================================
     # IMAGE SELECTION & PREVIEW
     # ===============================================================
-        # ===============================================================
-    # IMAGE SELECTION & PREVIEW
-    # ===============================================================
     def choose_image(self):
-        # choose a safe initial directory
-        # try Pictures, fall back to home folder
+        # Use a safe initial directory
         initial_dir = os.path.expanduser("~/Pictures")
         if not os.path.isdir(initial_dir):
             initial_dir = os.path.expanduser("~")
@@ -238,14 +228,22 @@ class ConfigPage(tk.Frame):
             w, h = self.DROP_BOX_WIDTH or 800, self.DROP_BOX_HEIGHT
 
         margin = 1
-        inner_w = w - 2 * margin - 4   # little padding so it doesn't touch border
+        inner_w = w - 2 * margin - 4
         inner_h = h - 2 * margin - 4
 
-        # Copy and fit image INTO that inner box, preserving aspect ratio
+        # Resize image to fit inside inner box (allow upscaling)
         img = self.original_img.copy()
-        img.thumbnail((inner_w, inner_h), Image.LANCZOS)
+        iw, ih = img.size
+        if iw == 0 or ih == 0:
+            return
 
-        # Save preview
+        scale = min(inner_w / iw, inner_h / ih)
+        if scale <= 0:
+            scale = 1.0
+
+        new_size = (int(iw * scale), int(ih * scale))
+        img = img.resize(new_size, Image.LANCZOS)
+
         self.preview_img = ImageTk.PhotoImage(img)
         self.redraw_canvas()
 
@@ -296,5 +294,6 @@ class ConfigPage(tk.Frame):
             "delay": delay,
         }
 
-        self.controller.frames["start"].update_info()
+        start_page = self.controller.frames["start"]
+        start_page.update_info()
         self.controller.show_frame("start")

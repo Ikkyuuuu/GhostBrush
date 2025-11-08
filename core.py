@@ -22,6 +22,7 @@ BLUE = "#0065a8"
 # Change this single line to swap fonts app-wide
 FONT_FAMILY = "Snowstorm"
 
+PG_NAME        = (FONT_FAMILY, 40, "bold")
 FONT_TITLE     = (FONT_FAMILY, 25, "bold")
 FONT_LABEL     = (FONT_FAMILY, 20)
 FONT_BUTTON    = (FONT_FAMILY, 16, "bold")

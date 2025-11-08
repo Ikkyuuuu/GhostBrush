@@ -7,6 +7,7 @@ from core import (
     TEXT_FG,
     SUBTLE_FG,
     BLUE,
+    PG_NAME,
     FONT_TITLE,
     FONT_STATUS,
 )
@@ -58,12 +59,12 @@ class App(tk.Tk):
         title_label = tk.Label(
             self.header_frame,
             text="Ghost Brush",
-            font=FONT_TITLE,
+            font=PG_NAME,
             bg=BLUE,
             fg=TEXT_FG,
-            anchor="w",
+            anchor="center",
         )
-        title_label.pack(fill="x", padx=15, pady=10)
+        title_label.pack(pady=10)
 
         # =========================
         # SEPARATOR LINE
@@ -106,7 +107,7 @@ class App(tk.Tk):
             self,
             textvariable=self.global_status_var,
             font=FONT_STATUS,
-            bg=APP_BG,        # default for config page
+            bg=APP_BG,
             fg=SUBTLE_FG,
             anchor="w",
         )
@@ -130,8 +131,10 @@ class App(tk.Tk):
 
             self.main_container.pack(fill="both", expand=True)
 
-            # Match tip bar to the dark canvas background on start page
-            self.status_bar.config(bg="#202020")
+            # Match status bar background to dark canvas
+            self.status_bar.config(bg="#1E1E1E")
+            # Hide F11 tip text
+            self.global_status_var.set("")
         else:
             # Show header & separator again
             self.main_container.pack_forget()
@@ -142,8 +145,11 @@ class App(tk.Tk):
             self.header_sep.pack(fill="x")
             self.main_container.pack(fill="both", expand=True, pady=(10, 0))
 
-            # Back to normal app background on config page
+            # Restore normal app background and tip text
             self.status_bar.config(bg=APP_BG)
+            self.global_status_var.set(
+                "Tip: Press F11 to toggle fullscreen. Press Esc to exit fullscreen or cancel dialogs."
+            )
 
     # -------------------------
     # FULLSCREEN CONTROL
