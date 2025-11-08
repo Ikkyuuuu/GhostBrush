@@ -116,8 +116,8 @@ class ConfigPage(tk.Frame):
             ).pack(anchor="center")
 
         # Variables
-        self.scale_var = tk.StringVar(value="0.25")
-        self.step_var = tk.StringVar(value="2")
+        self.scale_var = tk.StringVar(value="1")
+        self.step_var = tk.StringVar(value="1")
         self.threshold_var = tk.StringVar(value="200")
         self.delay_var = tk.StringVar(value="0")
 
